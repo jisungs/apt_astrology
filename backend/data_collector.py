@@ -48,12 +48,17 @@ def fetch_apt_trade_data(lawd_cd: str, deal_ymd: str) -> List[Dict]:
     특정 법정동 코드와 거래월의 아파트 실거래가 데이터 조회
     
     Args:
-        lawd_cd: 법정동 코드 (10자리)
+        lawd_cd: 법정동 코드 (10자리 또는 5자리)
         deal_ymd: 거래년월 (YYYYMM 형식)
     
     Returns:
         거래 데이터 딕셔너리 리스트
     """
+    # API는 5자리 코드(구 단위)를 사용하므로 변환
+    # 10자리 코드인 경우 앞 5자리만 사용
+    if len(lawd_cd) == 10:
+        lawd_cd = lawd_cd[:5]
+    
     params = {
         "serviceKey": PUBLIC_API_KEY,
         "pageNo": 1,
@@ -149,16 +154,16 @@ def preprocess_trade_data(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         전처리된 DataFrame
     """
-    # 필요한 컬럼만 선택 및 정리
+    # XML 응답의 실제 컬럼명에 맞춘 매핑
     columns_mapping = {
-        '년': 'year',
-        '월': 'month',
-        '거래금액': 'price',
-        '전용면적': 'area',
-        '층': 'floor',
-        '건축년도': 'build_year',
-        '아파트': 'apt_name',
-        '법정동': 'dong',
+        'dealYear': 'year',
+        'dealMonth': 'month',
+        'dealAmount': 'price',
+        'excluUseAr': 'area',
+        'floor': 'floor',
+        'buildYear': 'build_year',
+        'aptNm': 'apt_name',
+        'umdNm': 'dong',
     }
     
     # 존재하는 컬럼만 매핑
@@ -168,8 +173,8 @@ def preprocess_trade_data(df: pd.DataFrame) -> pd.DataFrame:
     
     # 데이터 타입 변환
     if 'price' in df_processed.columns:
-        # 거래금액에서 쉼표 제거 후 숫자로 변환
-        df_processed['price'] = df_processed['price'].str.replace(',', '').astype(float)
+        # 거래금액에서 쉼표 제거 후 숫자로 변환 (만원 단위)
+        df_processed['price'] = df_processed['price'].str.replace(',', '').astype(float) * 10000
     
     if 'area' in df_processed.columns:
         df_processed['area'] = pd.to_numeric(df_processed['area'], errors='coerce')
@@ -188,7 +193,7 @@ def preprocess_trade_data(df: pd.DataFrame) -> pd.DataFrame:
     
     # 년월 컬럼 생성 (시계열 분석용)
     if 'year' in df_processed.columns and 'month' in df_processed.columns:
-        df_processed['year_month'] = df_processed['year'].astype(str) + '-' + df_processed['month'].astype(str).str.zfill(2)
+        df_processed['year_month'] = df_processed['year'].astype(int).astype(str) + '-' + df_processed['month'].astype(int).astype(str).str.zfill(2)
     
     return df_processed
 

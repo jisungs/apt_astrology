@@ -28,17 +28,26 @@ def address_to_dong_code(address: str) -> Optional[str]:
     df = load_dong_code_data()
     
     # 폐지되지 않은 법정동만 필터링
-    active_df = df[df['폐지여부'] == '존재']
+    active_df = df[df['폐지여부'] == '존재'].copy()
     
-    # 주소에서 법정동명 찾기
-    # 간단한 매칭 로직 (향후 개선 가능)
-    address_parts = address.split()
+    # 정확한 매칭 우선 (가장 구체적인 주소부터)
+    # 법정동명 길이가 긴 것부터 정렬 (더 구체적인 주소 우선)
+    active_df['name_length'] = active_df['법정동명'].str.len()
+    active_df = active_df.sort_values('name_length', ascending=False)
     
+    # 정확히 일치하는 경우
+    exact_match = active_df[active_df['법정동명'] == address]
+    if not exact_match.empty:
+        return str(exact_match.iloc[0]['법정동코드'])[:10]
+    
+    # 주소가 법정동명으로 시작하는 경우 (부분 매칭)
     for _, row in active_df.iterrows():
         dong_name = row['법정동명']
-        # 주소에 법정동명이 포함되어 있는지 확인
-        if any(part in dong_name for part in address_parts if len(part) > 1):
-            return str(row['법정동코드'])[:10]  # 10자리 코드 반환
+        if address in dong_name or dong_name in address:
+            code = str(row['법정동코드'])[:10]
+            # 시/도 전체 코드(1100000000)는 제외하고, 구 단위 이상만 반환
+            if code != '1100000000':
+                return code
     
     return None
 
