@@ -82,17 +82,44 @@ def fetch_apt_trade_data(lawd_cd: str, deal_ymd: str) -> List[Dict]:
         return []
 
 
-def get_apartment_list(address: str, months: int = 3) -> List[str]:
+def get_apartment_list(address: str, months: int = 3, use_cache: bool = True) -> List[str]:
     """
-    특정 주소의 아파트 목록 조회 (최근 N개월 데이터에서 추출)
+    특정 주소의 아파트 목록 조회 (CSV 캐시 사용)
     
     Args:
         address: 주소 문자열
-        months: 조회할 개월 수 (기본값: 3개월)
+        months: 조회할 개월 수 (기본값: 3개월, 캐시 사용 시 무시됨)
+        use_cache: CSV 캐시 사용 여부 (기본값: True)
     
     Returns:
         아파트명 리스트 (중복 제거, 정렬)
     """
+    import os
+    from pathlib import Path
+    
+    # CSV 캐시 파일 경로 생성
+    cache_dir = Path(__file__).parent.parent / "data" / "apartment_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 주소를 파일명으로 사용 (특수문자 제거)
+    safe_address = address.replace(" ", "_").replace("/", "_")
+    cache_file = cache_dir / f"apartments_{safe_address}.csv"
+    
+    # 캐시에서 읽기 시도
+    if use_cache and cache_file.exists():
+        try:
+            df_cache = pd.read_csv(cache_file, encoding='utf-8')
+            if 'apartment_name' in df_cache.columns:
+                apartment_list = df_cache['apartment_name'].dropna().unique().tolist()
+                apartment_list = sorted([apt for apt in apartment_list if apt and apt.strip()])
+                print(f"캐시에서 아파트 목록 로드: {len(apartment_list)}개 (주소: {address})")
+                return apartment_list
+        except Exception as e:
+            print(f"캐시 파일 읽기 오류: {e}, API에서 새로 수집합니다.")
+    
+    # 캐시가 없거나 읽기 실패 시 API에서 수집
+    print(f"API에서 아파트 목록 수집 중... (주소: {address})")
+    
     # 주소 → 법정동 코드 변환
     lawd_cd = address_to_dong_code(address)
     if not lawd_cd:
@@ -122,6 +149,15 @@ def get_apartment_list(address: str, months: int = 3) -> List[str]:
     
     apartment_list = sorted(list(apartment_set))
     print(f"총 {len(apartment_list)}개의 아파트를 찾았습니다.")
+    
+    # CSV 캐시에 저장
+    if apartment_list:
+        try:
+            df_cache = pd.DataFrame({'apartment_name': apartment_list})
+            df_cache.to_csv(cache_file, index=False, encoding='utf-8')
+            print(f"아파트 목록 캐시 저장 완료: {cache_file}")
+        except Exception as e:
+            print(f"캐시 파일 저장 오류: {e}")
     
     return apartment_list
 
