@@ -543,14 +543,15 @@ select.input-field:not(:disabled):hover {
 }
 
 .charts-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: var(--spacing-xl);
     margin: var(--spacing-xl) 0;
 }
 
 .chart-section {
     margin: 0;
+    width: 100%;
 }
 
 .chart-section h3 {
@@ -567,7 +568,7 @@ select.input-field:not(:disabled):hover {
     border: var(--border-width) solid var(--border-color);
     position: relative;
     width: 100%;
-    min-height: 400px;
+    min-height: 500px;
     overflow: hidden;
 }
 
@@ -584,8 +585,11 @@ select.input-field:not(:disabled):hover {
 
 @media (max-width: 768px) {
     .charts-container {
-        grid-template-columns: 1fr;
         gap: var(--spacing-lg);
+    }
+    
+    .chart-container {
+        min-height: 400px;
     }
 }
 
