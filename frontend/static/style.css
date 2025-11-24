@@ -565,6 +565,21 @@ select.input-field:not(:disabled):hover {
     border-radius: var(--border-radius);
     padding: var(--spacing-lg);
     border: var(--border-width) solid var(--border-color);
+    position: relative;
+    width: 100%;
+    min-height: 400px;
+    overflow: hidden;
+}
+
+/* Plotly 그래프 컨테이너 스타일 */
+.chart-container > div {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.chart-container .plotly {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 @media (max-width: 768px) {

@@ -14,7 +14,9 @@ def create_price_prediction_chart(
     historical_data: pd.DataFrame,
     forecast_data: pd.DataFrame,
     next_month_prediction: Dict,
-    title: str = "아파트 가격 예측"
+    title: str = "아파트 가격 예측",
+    include_plotlyjs: bool = True,
+    div_id: Optional[str] = None
 ) -> str:
     """
     가격 예측 그래프 생성 (Plotly, 애니메이션 강화)
@@ -158,10 +160,15 @@ def create_price_prediction_chart(
         height=600
     )
     
+    # 고유한 div_id 생성 (제공되지 않은 경우)
+    if div_id is None:
+        import uuid
+        div_id = f'price-chart-{uuid.uuid4().hex[:8]}'
+    
     # HTML로 변환
     html_str = fig.to_html(
-        include_plotlyjs='cdn',
-        div_id='price-chart',
+        include_plotlyjs='cdn' if include_plotlyjs else False,
+        div_id=div_id,
         config={
             'displayModeBar': True,
             'displaylogo': False,
@@ -181,7 +188,9 @@ def create_price_prediction_chart(
 
 def create_volume_chart(
     historical_data: pd.DataFrame,
-    title: str = "거래량 추이"
+    title: str = "거래량 추이",
+    include_plotlyjs: bool = False,
+    div_id: Optional[str] = None
 ) -> str:
     """
     거래량 추이 차트 생성
@@ -233,9 +242,14 @@ def create_volume_chart(
         height=400
     )
     
+    # 고유한 div_id 생성 (제공되지 않은 경우)
+    if div_id is None:
+        import uuid
+        div_id = f'volume-chart-{uuid.uuid4().hex[:8]}'
+    
     html_str = fig.to_html(
-        include_plotlyjs='cdn',
-        div_id='volume-chart',
+        include_plotlyjs='cdn' if include_plotlyjs else False,
+        div_id=div_id,
         config={'displayModeBar': False}
     )
     

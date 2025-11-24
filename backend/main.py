@@ -216,16 +216,21 @@ async def predict(
         future_forecast = generate_forecast_dataframe(model, periods=6)
         
         # 7. 시각화 생성
+        # 첫 번째 그래프만 Plotly.js 포함, 두 번째는 제외하여 중복 로드 방지
         price_chart_html = create_price_prediction_chart(
             df_monthly,
             future_forecast,
             next_forecast,
-            title=f"{apt_name or address} 가격 예측"
+            title=f"{apt_name or address} 가격 예측",
+            include_plotlyjs=True,  # 첫 번째 그래프만 Plotly.js 포함
+            div_id='price-chart-main'
         )
         
         volume_chart_html = create_volume_chart(
             df_monthly,
-            title=f"{apt_name or address} 거래량 추이"
+            title=f"{apt_name or address} 거래량 추이",
+            include_plotlyjs=False,  # 두 번째 그래프는 Plotly.js 제외
+            div_id='volume-chart-main'
         )
         
         # 8. 결과 페이지 렌더링
