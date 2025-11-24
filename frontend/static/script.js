@@ -1,7 +1,10 @@
 // 점성술사 컨셉 인터랙션
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 폼 제출 시 로딩 애니메이션
+    // 플로팅 로딩 오버레이 관리
+    const loadingOverlay = document.getElementById('loading-overlay');
+    
+    // 폼 제출 시 플로팅 로딩 애니메이션 표시
     const form = document.querySelector('.prediction-form');
     if (form) {
         form.addEventListener('submit', function(e) {
@@ -9,8 +12,25 @@ document.addEventListener('DOMContentLoaded', function() {
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<span class="btn-icon">🔮</span><span class="btn-text">별을 읽는 중...</span>';
+                
+                // 플로팅 로딩 오버레이 표시
+                if (loadingOverlay) {
+                    loadingOverlay.style.display = 'flex';
+                    // 약간의 지연 후 opacity 전환 (부드러운 등장)
+                    setTimeout(() => {
+                        loadingOverlay.classList.add('show');
+                    }, 10);
+                }
             }
         });
+    }
+    
+    // 페이지 로드 시 로딩 오버레이 숨김 (결과 페이지에서)
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('show');
+        setTimeout(() => {
+            loadingOverlay.style.display = 'none';
+        }, 300);
     }
     
     // 입력 필드 포커스 효과
