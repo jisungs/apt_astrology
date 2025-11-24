@@ -1,21 +1,35 @@
 """
 데이터 수집 테스트 스크립트
 """
+import sys
+import os
+
+# 상위 디렉토리를 Python 경로에 추가
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from data_collector import collect_24months_data, preprocess_trade_data, calculate_monthly_avg_price
 import pandas as pd
 
 if __name__ == "__main__":
     # 테스트 주소 (서울시 종로구)
     test_address = "서울특별시 종로구"
+    # test_apt_name = None  # 전체 데이터 수집
+    # test_apt_name = "경희궁자이"  # 개별 아파트 수집 (주석 해제하여 사용)
+    test_apt_name = None
     
     print("=" * 50)
     print("아파트 실거래가 데이터 수집 테스트")
     print("=" * 50)
-    print(f"주소: {test_address}\n")
+    print(f"주소: {test_address}")
+    if test_apt_name:
+        print(f"아파트명: {test_apt_name} (개별 아파트 모드)")
+    else:
+        print("아파트명: 없음 (전체 데이터 모드)")
+    print()
     
     try:
         # 24개월 데이터 수집
-        df_raw = collect_24months_data(test_address)
+        df_raw = collect_24months_data(test_address, apt_name=test_apt_name)
         
         # 데이터 전처리
         df_processed = preprocess_trade_data(df_raw)

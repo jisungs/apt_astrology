@@ -134,8 +134,18 @@ def collect_24months_data(address: str, apt_name: Optional[str] = None) -> pd.Da
     df = pd.DataFrame(all_data)
     
     # 아파트명 필터링 (선택사항)
-    if apt_name and '아파트' in df.columns:
-        df = df[df['아파트'].str.contains(apt_name, na=False)]
+    if apt_name:
+        if 'aptNm' in df.columns:
+            # 부분 일치 검색 (대소문자 구분 없음)
+            df_filtered = df[df['aptNm'].str.contains(apt_name, case=False, na=False)]
+            if len(df_filtered) == 0:
+                print(f"\n⚠️  경고: '{apt_name}'와 일치하는 아파트를 찾을 수 없습니다.")
+                print(f"   사용 가능한 아파트명 샘플: {df['aptNm'].unique()[:5].tolist()}")
+            else:
+                df = df_filtered
+                print(f"\n✓ '{apt_name}' 아파트 필터링 완료: {len(df)}건")
+        else:
+            print(f"\n⚠️  경고: 아파트명 컬럼을 찾을 수 없습니다.")
     
     print(f"\n총 {len(df)}건의 거래 데이터 수집 완료")
     return df
