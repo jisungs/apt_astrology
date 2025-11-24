@@ -151,11 +151,13 @@ async def predict(
         current_forecast = predictions['current_month']
         next_forecast = predictions['next_month']
         
-        # 4-1. 예측 가격을 마지막 실거래 가격 기준으로 조정 (차이가 30% 이상일 때만 ±10% 범위로 조정)
+        # 4-1. 예측 가격을 마지막 실거래 가격 기준으로 조정 (차이가 30% 이상일 때만 5%~15% 범위에서 랜덤 조정)
         if last_trade and 'price' in last_trade:
+            import random
             last_price = last_trade['price']
             threshold_ratio = 0.30  # 30% 이상 차이일 때 조정
-            adjustment_factor = 0.10  # ±10% 범위로 조정
+            min_adjustment = 0.05  # 최소 5%
+            max_adjustment = 0.15  # 최대 15%
             
             # 현재달 예측 가격 조정
             predicted_current = current_forecast['predicted_price']
@@ -163,16 +165,16 @@ async def predict(
             
             # 차이가 30% 이상일 때만 조정
             if price_diff_ratio >= threshold_ratio:
-                lower_bound_current = last_price * (1 - adjustment_factor)
-                upper_bound_current = last_price * (1 + adjustment_factor)
+                # 5%~15% 범위에서 랜덤하게 조정 비율 선택
+                random_adjustment = random.uniform(min_adjustment, max_adjustment)
                 
-                # 예측 가격의 변화 방향을 유지하되, ±10% 범위 내로 제한
+                # 예측 가격의 변화 방향을 유지하되, 랜덤 조정 범위 내로 제한
                 if predicted_current < last_price:
-                    # 하락 예측인 경우, 최소 -10%로 제한
-                    adjusted_current = max(predicted_current, lower_bound_current)
+                    # 하락 예측인 경우, 마지막 거래가 기준 -5%~-15% 범위로 조정
+                    adjusted_current = last_price * (1 - random_adjustment)
                 else:
-                    # 상승 예측인 경우, 최대 +10%로 제한
-                    adjusted_current = min(predicted_current, upper_bound_current)
+                    # 상승 예측인 경우, 마지막 거래가 기준 +5%~+15% 범위로 조정
+                    adjusted_current = last_price * (1 + random_adjustment)
                 
                 # 예측 가격과의 차이 비율 계산
                 diff_ratio = (adjusted_current - predicted_current) / predicted_current if predicted_current != 0 else 0
@@ -182,7 +184,8 @@ async def predict(
                 current_forecast['lower_bound'] = current_forecast['lower_bound'] * (1 + diff_ratio)
                 current_forecast['upper_bound'] = current_forecast['upper_bound'] * (1 + diff_ratio)
                 
-                print(f"[가격 조정] 현재달 예측: {predicted_current:,.0f}원 → {adjusted_current:,.0f}원 (차이: {price_diff_ratio*100:.1f}%, 마지막 거래가: {last_price:,.0f}원 기준 ±10%)")
+                adjustment_percent = random_adjustment * 100
+                print(f"[가격 조정] 현재달 예측: {predicted_current:,.0f}원 → {adjusted_current:,.0f}원 (차이: {price_diff_ratio*100:.1f}%, 마지막 거래가: {last_price:,.0f}원 기준 ±{adjustment_percent:.1f}% 랜덤 조정)")
             
             # 다음달 예측 가격 조정
             predicted_next = next_forecast['predicted_price']
@@ -190,13 +193,15 @@ async def predict(
             
             # 차이가 30% 이상일 때만 조정
             if price_diff_ratio_next >= threshold_ratio:
-                lower_bound_next = last_price * (1 - adjustment_factor)
-                upper_bound_next = last_price * (1 + adjustment_factor)
+                # 5%~15% 범위에서 랜덤하게 조정 비율 선택 (현재달과 독립적으로)
+                random_adjustment_next = random.uniform(min_adjustment, max_adjustment)
                 
                 if predicted_next < last_price:
-                    adjusted_next = max(predicted_next, lower_bound_next)
+                    # 하락 예측인 경우, 마지막 거래가 기준 -5%~-15% 범위로 조정
+                    adjusted_next = last_price * (1 - random_adjustment_next)
                 else:
-                    adjusted_next = min(predicted_next, upper_bound_next)
+                    # 상승 예측인 경우, 마지막 거래가 기준 +5%~+15% 범위로 조정
+                    adjusted_next = last_price * (1 + random_adjustment_next)
                 
                 diff_ratio = (adjusted_next - predicted_next) / predicted_next if predicted_next != 0 else 0
                 
@@ -204,7 +209,8 @@ async def predict(
                 next_forecast['lower_bound'] = next_forecast['lower_bound'] * (1 + diff_ratio)
                 next_forecast['upper_bound'] = next_forecast['upper_bound'] * (1 + diff_ratio)
                 
-                print(f"[가격 조정] 다음달 예측: {predicted_next:,.0f}원 → {adjusted_next:,.0f}원 (차이: {price_diff_ratio_next*100:.1f}%, 마지막 거래가: {last_price:,.0f}원 기준 ±10%)")
+                adjustment_percent_next = random_adjustment_next * 100
+                print(f"[가격 조정] 다음달 예측: {predicted_next:,.0f}원 → {adjusted_next:,.0f}원 (차이: {price_diff_ratio_next*100:.1f}%, 마지막 거래가: {last_price:,.0f}원 기준 ±{adjustment_percent_next:.1f}% 랜덤 조정)")
         
         # 5. 예측 근거 분석
         last_price_for_analysis = last_trade['price'] if last_trade and 'price' in last_trade else None
