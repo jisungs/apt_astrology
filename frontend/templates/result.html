@@ -111,17 +111,19 @@
                 </div>
             </div>
             
-            <div class="chart-section">
-                <h3>📊 가격 예측 그래프</h3>
-                <div class="chart-container">
-                    {{ price_chart_html|safe }}
+            <div class="charts-container">
+                <div class="chart-section">
+                    <h3>📊 가격 예측 그래프</h3>
+                    <div class="chart-container">
+                        {{ price_chart_html|safe }}
+                    </div>
                 </div>
-            </div>
-            
-            <div class="chart-section">
-                <h3>📈 거래량 추이</h3>
-                <div class="chart-container">
-                    {{ volume_chart_html|safe }}
+                
+                <div class="chart-section">
+                    <h3>📈 거래량 추이</h3>
+                    <div class="chart-container">
+                        {{ volume_chart_html|safe }}
+                    </div>
                 </div>
             </div>
             
