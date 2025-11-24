@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔮 예측 결과 - 점성술사의 예언</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="result-card">
+            <div class="header">
+                <h1>🔮 점성술사의 예언 결과</h1>
+                <a href="/" class="back-link">← 다시 예측하기</a>
+            </div>
+            
+            <div class="location-info">
+                <h2>📍 {{ address }}</h2>
+                {% if apt_name %}
+                <h3>🏠 {{ apt_name }}</h3>
+                {% endif %}
+                {% if data_warning %}
+                <div class="data-warning">
+                    <span class="warning-icon">⚠️</span>
+                    <span class="warning-text">{{ data_warning }}</span>
+                    <span class="data-months">(현재 데이터: {{ data_months }}개월)</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if last_trade %}
+            <div class="last-trade-section">
+                <h3>📋 마지막 실거래 정보</h3>
+                <div class="last-trade-card">
+                    <div class="trade-info-row">
+                        <div class="trade-info-item">
+                            <span class="trade-label">거래일</span>
+                            <span class="trade-value">{{ last_trade.date }}</span>
+                        </div>
+                        <div class="trade-info-item">
+                            <span class="trade-label">거래가격</span>
+                            <span class="trade-value highlight">{{ last_trade.price_formatted }}</span>
+                        </div>
+                    </div>
+                    {% if last_trade.area %}
+                    <div class="trade-info-row">
+                        <div class="trade-info-item">
+                            <span class="trade-label">면적</span>
+                            <span class="trade-value">{{ last_trade.area }}㎡</span>
+                        </div>
+                        {% if last_trade.floor %}
+                        <div class="trade-info-item">
+                            <span class="trade-label">층수</span>
+                            <span class="trade-value">{{ last_trade.floor }}층</span>
+                        </div>
+                        {% endif %}
+                        {% if last_trade.build_year %}
+                        <div class="trade-info-item">
+                            <span class="trade-label">건축년도</span>
+                            <span class="trade-value">{{ last_trade.build_year }}년</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% if last_trade.apt_name %}
+                    <div class="trade-info-row">
+                        <div class="trade-info-item full-width">
+                            <span class="trade-label">아파트명</span>
+                            <span class="trade-value">{{ last_trade.apt_name }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if last_trade.dong %}
+                    <div class="trade-info-row">
+                        <div class="trade-info-item full-width">
+                            <span class="trade-label">법정동</span>
+                            <span class="trade-value">{{ last_trade.dong }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="prediction-section">
+                <div class="prediction-card current-month">
+                    <h3>1. 이번달 예측 가격</h3>
+                    <div class="prediction-date">{{ current_forecast.date.strftime('%Y년 %m월') }}</div>
+                    <div class="prediction-price">{{ format_price(current_forecast.predicted_price|int) }}</div>
+                    <div class="prediction-range">
+                        <span>하한: {{ format_price(current_forecast.lower_bound|int) }}</span>
+                        <span>상한: {{ format_price(current_forecast.upper_bound|int) }}</span>
+                    </div>
+                </div>
+                
+                <div class="prediction-card next-month">
+                    <h3>2. 다음달 예측 가격</h3>
+                    <div class="prediction-date">{{ next_forecast.date.strftime('%Y년 %m월') }}</div>
+                    <div class="prediction-price highlight">{{ format_price(next_forecast.predicted_price|int) }}</div>
+                    <div class="prediction-range">
+                        <span>하한: {{ format_price(next_forecast.lower_bound|int) }}</span>
+                        <span>상한: {{ format_price(next_forecast.upper_bound|int) }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="explanation-section">
+                <h3>🔮 점성술사의 예언</h3>
+                <div class="explanation-text">
+                    {{ explanation|replace('\n', '<br>')|safe }}
+                </div>
+            </div>
+            
+            <div class="chart-section">
+                <h3>📊 가격 예측 그래프</h3>
+                <div class="chart-container">
+                    {{ price_chart_html|safe }}
+                </div>
+            </div>
+            
+            <div class="chart-section">
+                <h3>📈 거래량 추이</h3>
+                <div class="chart-container">
+                    {{ volume_chart_html|safe }}
+                </div>
+            </div>
+            
+            <div class="analysis-section">
+                <h3>📊 예측 근거 분석</h3>
+                <div class="analysis-grid">
+                    <div class="analysis-item">
+                        <div class="analysis-label">예측 방향</div>
+                        <div class="analysis-value {{ 'trend-up' if factors.prediction_trend.direction == '상승' else 'trend-down' }}">
+                            {{ factors.prediction_trend.direction }} ({{ "%.1f"|format(factors.prediction_trend.change_rate) }}%)
+                        </div>
+                    </div>
+                    {% if factors.volume %}
+                    <div class="analysis-item">
+                        <div class="analysis-label">거래량 변화</div>
+                        <div class="analysis-value">
+                            {{ "%.1f"|format(factors.volume.change) }}%
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="analysis-item">
+                        <div class="analysis-label">예측 신뢰도</div>
+                        <div class="analysis-value confidence">
+                            {{ "%.1f"|format(factors.confidence) }}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>
+

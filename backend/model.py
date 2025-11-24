@@ -165,7 +165,7 @@ def generate_forecast_dataframe(model: Prophet, periods: int = 12, start_date: O
     return forecast
 
 
-def analyze_prediction_factors(df: pd.DataFrame, forecast: Dict, is_current_month: bool = False) -> Dict:
+def analyze_prediction_factors(df: pd.DataFrame, forecast: Dict, last_trade_price: Optional[float] = None, is_current_month: bool = False) -> Dict:
     """
     예측 근거 분석 (간단한 통계 기반)
     Prophet은 SHAP과 직접 호환되지 않으므로 통계적 분석 사용
@@ -173,22 +173,56 @@ def analyze_prediction_factors(df: pd.DataFrame, forecast: Dict, is_current_mont
     Args:
         df: 과거 데이터 DataFrame
         forecast: 예측 결과
+        last_trade_price: 마지막 실거래 가격 (선택사항)
     
     Returns:
         분석 결과 딕셔너리
     """
     factors = {}
     
-    # 1. 최근 추세 분석
+    # 1. 예측 방향 분석 (마지막 실거래 가격과 예측 가격 비교)
+    predicted_price = forecast['predicted_price']
+    
+    if last_trade_price and last_trade_price > 0:
+        # 마지막 실거래 가격과 예측 가격 비교
+        price_change = ((predicted_price - last_trade_price) / last_trade_price) * 100
+        prediction_direction = '상승' if price_change > 0 else '하락'
+        
+        factors['prediction_trend'] = {
+            'direction': prediction_direction,
+            'change_rate': price_change,
+            'last_price': last_trade_price,
+            'predicted_price': predicted_price
+        }
+    else:
+        # 마지막 실거래 가격이 없으면 최근 평균과 비교
+        recent_avg = df['avg_price'].tail(3).mean()
+        price_change = ((predicted_price - recent_avg) / recent_avg) * 100 if recent_avg > 0 else 0
+        prediction_direction = '상승' if price_change > 0 else '하락'
+        
+        factors['prediction_trend'] = {
+            'direction': prediction_direction,
+            'change_rate': price_change,
+            'last_price': recent_avg,
+            'predicted_price': predicted_price
+        }
+    
+    # 2. 최근 과거 추세 분석 (참고용)
     recent_months = df.tail(3)
-    trend = '상승' if recent_months['avg_price'].iloc[-1] > recent_months['avg_price'].iloc[0] else '하락'
-    factors['trend'] = {
-        'direction': trend,
+    if len(recent_months) >= 2:
+        past_trend = '상승' if recent_months['avg_price'].iloc[-1] > recent_months['avg_price'].iloc[0] else '하락'
+        past_change_rate = ((recent_months['avg_price'].iloc[-1] - recent_months['avg_price'].iloc[0]) / recent_months['avg_price'].iloc[0]) * 100
+    else:
+        past_trend = '변동 없음'
+        past_change_rate = 0
+    
+    factors['past_trend'] = {
+        'direction': past_trend,
         'recent_avg': recent_months['avg_price'].mean(),
-        'change_rate': ((recent_months['avg_price'].iloc[-1] - recent_months['avg_price'].iloc[0]) / recent_months['avg_price'].iloc[0]) * 100
+        'change_rate': past_change_rate
     }
     
-    # 2. 거래량 변화 분석
+    # 3. 거래량 변화 분석
     if 'trade_count' in df.columns:
         recent_volume = df.tail(3)['trade_count'].mean()
         overall_volume = df['trade_count'].mean()
@@ -198,7 +232,7 @@ def analyze_prediction_factors(df: pd.DataFrame, forecast: Dict, is_current_mont
             'change': ((recent_volume - overall_volume) / overall_volume) * 100 if overall_volume > 0 else 0
         }
     
-    # 3. 계절성 패턴 분석 (월별 평균)
+    # 4. 계절성 패턴 분석 (월별 평균)
     df['month'] = pd.to_datetime(df['year_month'] + '-01').dt.month
     monthly_avg = df.groupby('month')['avg_price'].mean()
     current_month = forecast['date'].month
@@ -207,7 +241,7 @@ def analyze_prediction_factors(df: pd.DataFrame, forecast: Dict, is_current_mont
         'monthly_pattern': monthly_avg.to_dict()
     }
     
-    # 4. 예측 신뢰도 (과거 데이터 분산 기반)
+    # 5. 예측 신뢰도 (과거 데이터 분산 기반)
     price_std = df['avg_price'].std()
     price_mean = df['avg_price'].mean()
     confidence = max(0, min(100, 100 - (price_std / price_mean * 100))) if price_mean > 0 else 50
@@ -216,25 +250,44 @@ def analyze_prediction_factors(df: pd.DataFrame, forecast: Dict, is_current_mont
     return factors
 
 
-def generate_astrology_explanation(factors: Dict, predicted_price: float) -> str:
+def generate_astrology_explanation(factors: Dict, predicted_price: float, last_trade_price: Optional[float] = None) -> str:
     """
     점성술사 스타일의 예측 근거 설명 생성
     
     Args:
         factors: 분석 결과 딕셔너리
         predicted_price: 예측 가격
+        last_trade_price: 마지막 실거래 가격 (선택사항)
     
     Returns:
         점성술사 스타일 설명 문자열
     """
     explanations = []
     
-    # 추세 분석
-    trend = factors.get('trend', {})
-    if trend.get('direction') == '상승':
-        explanations.append(f"✨ 최근 3개월간 상승 기운이 감지되었어요. ({trend.get('change_rate', 0):.1f}% 상승)")
-    else:
-        explanations.append(f"📉 최근 3개월간 하락 흐름이 보여요. ({abs(trend.get('change_rate', 0)):.1f}% 하락)")
+    # 예측 방향 분석 (가장 중요 - 마지막 실거래 가격과 예측 가격 비교)
+    prediction_trend = factors.get('prediction_trend', {})
+    if prediction_trend:
+        direction = prediction_trend.get('direction', '변동 없음')
+        change_rate = prediction_trend.get('change_rate', 0)
+        
+        if direction == '상승':
+            explanations.append(f"✨ 마지막 실거래 대비 {abs(change_rate):.1f}% 상승할 것으로 예상돼요. ({prediction_trend.get('last_price', 0):,.0f}원 → {predicted_price:,.0f}원)")
+        elif direction == '하락':
+            explanations.append(f"📉 마지막 실거래 대비 {abs(change_rate):.1f}% 하락할 것으로 예상돼요. ({prediction_trend.get('last_price', 0):,.0f}원 → {predicted_price:,.0f}원)")
+        else:
+            explanations.append(f"➡️ 마지막 실거래와 비슷한 수준을 유지할 것으로 보여요.")
+    
+    # 과거 추세와 예측 방향 비교
+    past_trend = factors.get('past_trend', {})
+    if past_trend and prediction_trend:
+        past_direction = past_trend.get('direction', '')
+        prediction_direction = prediction_trend.get('direction', '')
+        
+        if past_direction != prediction_direction:
+            if past_direction == '상승' and prediction_direction == '하락':
+                explanations.append(f"📊 최근 3개월간 상승세였지만, 예측에서는 하락 전환을 보여요.")
+            elif past_direction == '하락' and prediction_direction == '상승':
+                explanations.append(f"📊 최근 3개월간 하락세였지만, 예측에서는 반등을 보여요.")
     
     # 거래량 분석
     volume = factors.get('volume', {})
@@ -246,11 +299,12 @@ def generate_astrology_explanation(factors: Dict, predicted_price: float) -> str
     # 계절성 분석
     seasonality = factors.get('seasonality', {})
     current_month_avg = seasonality.get('current_month_avg')
-    if current_month_avg:
-        if predicted_price > current_month_avg * 1.05:
-            explanations.append(f"🌟 이번 달은 평년 같은 달보다 높은 가격대를 보여줄 예정이에요.")
-        elif predicted_price < current_month_avg * 0.95:
-            explanations.append(f"🌙 이번 달은 평년 같은 달보다 낮은 가격대가 예상돼요.")
+    if current_month_avg and current_month_avg > 0:
+        seasonality_diff = ((predicted_price - current_month_avg) / current_month_avg) * 100
+        if seasonality_diff > 5:
+            explanations.append(f"🌟 이번 달은 평년 같은 달보다 {seasonality_diff:.1f}% 높은 가격대를 보여줄 예정이에요.")
+        elif seasonality_diff < -5:
+            explanations.append(f"🌙 이번 달은 평년 같은 달보다 {abs(seasonality_diff):.1f}% 낮은 가격대가 예상돼요.")
     
     # 신뢰도
     confidence = factors.get('confidence', 50)

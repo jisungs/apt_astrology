@@ -82,6 +82,50 @@ def fetch_apt_trade_data(lawd_cd: str, deal_ymd: str) -> List[Dict]:
         return []
 
 
+def get_apartment_list(address: str, months: int = 3) -> List[str]:
+    """
+    특정 주소의 아파트 목록 조회 (최근 N개월 데이터에서 추출)
+    
+    Args:
+        address: 주소 문자열
+        months: 조회할 개월 수 (기본값: 3개월)
+    
+    Returns:
+        아파트명 리스트 (중복 제거, 정렬)
+    """
+    # 주소 → 법정동 코드 변환
+    lawd_cd = address_to_dong_code(address)
+    if not lawd_cd:
+        return []
+    
+    # 최근 N개월 년월 리스트 생성
+    from datetime import datetime
+    now = datetime.now()
+    year_month_list = generate_year_month_list(now.year - 1, now.month, months)
+    year_month_list.reverse()  # 최신 데이터부터
+    
+    apartment_set = set()
+    
+    print(f"아파트 목록 수집 중... (최근 {months}개월)")
+    for i, deal_ymd in enumerate(year_month_list[:months], 1):
+        print(f"[{i}/{min(months, len(year_month_list))}] {deal_ymd} 데이터 조회 중...")
+        data = fetch_apt_trade_data(lawd_cd, deal_ymd)
+        
+        for item in data:
+            if 'aptNm' in item and item['aptNm']:
+                apt_name = item['aptNm'].strip()
+                if apt_name and apt_name != ' ':
+                    apartment_set.add(apt_name)
+        
+        import time
+        time.sleep(0.1)  # API 호출 제한 고려
+    
+    apartment_list = sorted(list(apartment_set))
+    print(f"총 {len(apartment_list)}개의 아파트를 찾았습니다.")
+    
+    return apartment_list
+
+
 def collect_24months_data(address: str, apt_name: Optional[str] = None) -> pd.DataFrame:
     """
     주소를 입력받아 최근 24개월 아파트 실거래가 데이터 수집
@@ -228,4 +272,3 @@ def calculate_monthly_avg_price(df: pd.DataFrame) -> pd.DataFrame:
     monthly_avg = monthly_avg.sort_values('year_month').reset_index(drop=True)
     
     return monthly_avg
-

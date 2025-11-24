@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔮 아파트 가격 예측 - 점성술사의 예언</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="main-card">
+            <div class="header">
+                <h1>🔮 점성술사의 아파트 가격 예언</h1>
+                <p class="subtitle">별의 조언으로 알아보는 다음달 아파트 가격</p>
+            </div>
+            
+            <div class="form-container">
+                <form method="POST" action="/predict" class="prediction-form">
+                    <div class="form-group">
+                        <label for="city">📍 시/도를 선택하세요</label>
+                        <select 
+                            id="city" 
+                            name="city" 
+                            class="input-field"
+                            required
+                        >
+                            <option value="">시/도 선택</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="district">📍 구/군을 선택하세요</label>
+                        <select 
+                            id="district" 
+                            name="district" 
+                            class="input-field"
+                            required
+                            disabled
+                        >
+                            <option value="">먼저 시/도를 선택하세요</option>
+                        </select>
+                        <input 
+                            type="hidden" 
+                            id="address" 
+                            name="address" 
+                            value=""
+                        >
+                        <div id="loading_district" class="loading-indicator" style="display: none;">
+                            <span>🔮 구/군 목록을 불러오는 중...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="apt_name">🏠 아파트명 (선택사항)</label>
+                        <select 
+                            id="apt_name" 
+                            name="apt_name" 
+                            class="input-field"
+                            disabled
+                        >
+                            <option value="">먼저 주소를 입력하세요</option>
+                        </select>
+                        <small class="hint" id="apt_hint">주소를 입력하면 해당 지역의 아파트 목록이 표시됩니다</small>
+                        <div id="loading_apt" class="loading-indicator" style="display: none;">
+                            <span>🔮 아파트 목록을 불러오는 중...</span>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="submit-btn">
+                        <span class="btn-icon">✨</span>
+                        <span class="btn-text">예지력으로 가격 예측하기</span>
+                    </button>
+                </form>
+            </div>
+            
+            <div class="info-section">
+                <h3>🌟 예측 정보</h3>
+                <ul>
+                    <li>최근 24개월 실거래가 데이터를 분석합니다</li>
+                    <li>Prophet 시계열 모델을 사용한 예측입니다</li>
+                    <li>이번달과 다음달 가격을 함께 예측합니다</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html>
+
