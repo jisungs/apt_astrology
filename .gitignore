@@ -358,3 +358,4 @@ pyrightconfig.json
 # Logs directory
 logs/
 *.log
+models/.DS_Store
