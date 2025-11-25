@@ -381,10 +381,46 @@ python-3.11.0
 }
 ```
 
-#### 4.4 환경 변수 설정
+#### 4.4 원격 저장소 연결
+**현재 상태**:
+- **원격 저장소**: `origin` → `https://github.com/jisungs/apt_astrology.git`
+- **기본 브랜치**: `main` (원격: `origin/main`)
+- **배포 브랜치**: `railway-deployment` (로컬, 원격 푸시 필요)
+
+**배포 브랜치 푸시**:
+```bash
+# 배포 브랜치로 전환
+git checkout railway-deployment
+
+# 원격 저장소에 푸시 (최초)
+git push -u origin railway-deployment
+
+# 이후 업데이트
+git push origin railway-deployment
+```
+
+#### 4.5 Railway와 GitHub 연결
+**Railway 대시보드에서 설정**:
+
+1. **프로젝트 생성**: Railway 대시보드에서 새 프로젝트 생성
+2. **GitHub 저장소 연결**:
+   - "Deploy from GitHub repo" 선택
+   - 저장소: `jisungs/apt_astrology` 선택
+   - 인증: GitHub OAuth 승인
+3. **배포 브랜치 선택**:
+   - Settings → Source → Branch
+   - `railway-deployment` 선택
+4. **자동 배포 활성화**:
+   - `railway-deployment` 브랜치에 푸시하면 자동 배포
+   - Railway가 GitHub 웹훅을 통해 변경사항 감지
+
+#### 4.6 환경 변수 설정
 **Railway 대시보드에서 설정**:
 
 1. **PUBLIC_API_KEY**: 공공데이터 포털 API 키
+   - Variables 탭에서 추가
+   - Key: `PUBLIC_API_KEY`
+   - Value: 실제 API 키 값
 2. **PORT**: Railway가 자동으로 설정 (사용자 설정 불필요)
 
 ---
@@ -568,23 +604,73 @@ def extract_apt_name_from_model_filename(filename: str) -> str:
 - [ ] 각 아파트 예측 테스트
 - [ ] 모델 로드 테스트
 
+### 원격 저장소
+- [ ] 원격 저장소 연결 확인 (`git remote -v`)
+- [ ] 배포 브랜치 원격 푸시 (`git push origin railway-deployment`)
+- [ ] GitHub에서 브랜치 확인 (https://github.com/jisungs/apt_astrology)
+
 ### 배포
 - [ ] Railway 계정 생성
-- [ ] 프로젝트 생성 및 저장소 연결
-- [ ] 환경 변수 설정
+- [ ] 프로젝트 생성 및 GitHub 저장소 연결 (`jisungs/apt_astrology`)
+- [ ] 배포 브랜치 선택 (`railway-deployment`)
+- [ ] 환경 변수 설정 (`PUBLIC_API_KEY`)
 - [ ] 배포 실행
-- [ ] 배포 후 테스트
+- [ ] 배포 URL 확인 및 테스트
 
 ---
 
 ## 🎯 다음 단계
 
 1. 코드 수정 완료 후 로컬 테스트
-2. Railway 배포 실행
-3. 배포 후 모니터링 및 최적화
+2. 배포 브랜치를 원격 저장소에 푸시 (`git push origin railway-deployment`)
+3. Railway에서 GitHub 저장소 연결 및 배포 브랜치 선택
+4. Railway 배포 실행
+5. 배포 후 모니터링 및 최적화
+
+---
+
+## 📝 Git 원격 저장소 명령어 참고
+
+### 원격 저장소 확인
+```bash
+# 원격 저장소 목록 확인
+git remote -v
+
+# 출력 예시:
+# origin  https://github.com/jisungs/apt_astrology.git (fetch)
+# origin  https://github.com/jisungs/apt_astrology.git (push)
+```
+
+### 배포 브랜치 푸시
+```bash
+# 배포 브랜치로 전환
+git checkout railway-deployment
+
+# 원격 저장소에 푸시 (최초)
+git push -u origin railway-deployment
+
+# 이후 푸시
+git push origin railway-deployment
+```
+
+### 원격 브랜치 확인
+```bash
+# 원격 브랜치 목록 확인
+git branch -r
+
+# 모든 브랜치 확인 (로컬 + 원격)
+git branch -a
+```
+
+### 원격 브랜치 삭제 (필요시)
+```bash
+# 원격 브랜치 삭제
+git push origin --delete railway-deployment
+```
 
 ---
 
 **작성자**: AI Assistant  
-**최종 업데이트**: 2025년 11월 25일
+**최종 업데이트**: 2025년 11월 25일  
+**원격 저장소**: https://github.com/jisungs/apt_astrology.git
 
