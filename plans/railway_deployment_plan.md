@@ -485,9 +485,10 @@ apt_astrology/
 ```
 apt_astrology/
 ├── Procfile                       # Railway 시작 명령
-├── runtime.txt                    # Python 버전 지정 (선택사항)
-└── railway.json                   # Railway 설정 (선택사항)
+└── nixpacks.toml                  # Railway 설정 (선택사항, Python 버전 명시 시)
 ```
+
+**⚠️ 중요**: `runtime.txt` 파일은 Railway 배포 시 오류를 발생시키므로 **제거**되었습니다.
 
 ---
 
