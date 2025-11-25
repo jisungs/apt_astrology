@@ -2,7 +2,35 @@
 
 **작성일**: 2025년 11월 25일  
 **배포 플랫폼**: Railway  
-**목표**: 서울특별시 서초구 특정 아파트만 선택 가능한 제한된 버전 배포
+**목표**: 서울특별시 서초구 특정 아파트만 선택 가능한 제한된 버전 배포  
+**브랜치**: `railway-deployment` (배포 전용 브랜치)
+
+---
+
+## 🌿 Git 브랜치 관리
+
+### 브랜치 전략
+- **master**: 개발 버전 (전체 기능 포함)
+- **railway-deployment**: 배포 버전 (서초구 제한 버전)
+
+### 브랜치 작업 흐름
+```bash
+# 배포 브랜치 생성 및 전환
+git checkout -b railway-deployment
+
+# 배포 관련 변경사항 커밋
+git add .
+git commit -m "feat: Railway 배포용 서초구 제한 버전 구현"
+
+# 배포 후 master 브랜치로 병합 (선택사항)
+git checkout master
+git merge railway-deployment
+```
+
+### 배포 브랜치에서만 적용되는 변경사항
+- UI 제한 (서초구만 선택 가능)
+- API 제한 (서초구 및 지정된 아파트만)
+- 모델 파일 매핑 (기존 모델만 사용)
 
 ---
 
