@@ -103,6 +103,17 @@ async def predict(
             logger.warning(f"입력 검증 실패: {str(e)}")
             raise ValidationError(f"입력 검증 실패: {str(e)}")
         
+        # 서초구 배포 버전: 주소 검증
+        if "서초구" not in address:
+            logger.warning(f"허용되지 않은 주소: {address}")
+            raise ValidationError("서초구 배포 버전에서는 서울특별시 서초구만 선택할 수 있습니다.")
+        
+        # 서초구 배포 버전: 아파트명 검증
+        allowed_apartments = ["대림서초리시온", "디에이치반포라클라스", "래미안_리더스원", "롯데캐슬갤럭시", "대우아이빌"]
+        if apt_name and apt_name not in allowed_apartments:
+            logger.warning(f"허용되지 않은 아파트: {apt_name}")
+            raise ValidationError(f"서초구 배포 버전에서는 다음 아파트만 선택할 수 있습니다: {', '.join(allowed_apartments)}")
+        
         # 1. 데이터 수집
         logger.info(f"예측 요청 - 주소: {address}, 아파트명: {apt_name or '전체'}")
         try:
@@ -179,29 +190,37 @@ async def predict(
             data_warning = f"⚠️ 데이터가 {len(df_monthly)}개월로 부족합니다. 예측 정확도가 낮을 수 있습니다. (권장: 12개월 이상)"
             logger.warning(data_warning)
         
-        # 3. 모델 학습 또는 로드
-        model_key = f"{address}_{apt_name or '전체'}"
+        # 3. 모델 학습 또는 로드 (서초구 배포 버전: 기존 모델만 사용)
+        # 모델 파일명 매핑 (아파트명 -> 모델 파일명)
+        MODEL_FILE_MAPPING = {
+            "대림서초리시온": "prophet_model_서울특별시_서초구_대림서초리시온.pkl",
+            "디에이치반포라클라스": "prophet_model_서울특별시_서초구_디에이치반포라클라스.pkl",
+            "래미안_리더스원": "prophet_model_서울특별시_서초구_래미안_리더스원.pkl",
+            "롯데캐슬갤럭시": "prophet_model_서울특별시_서초구_롯데캐슬갤럭시.pkl",
+            "대우아이빌": "prophet_model_서울특별시_서초구_대우아이빌.pkl"
+        }
+        
         MODELS_DIR = os.path.join(BASE_DIR, "models")
         os.makedirs(MODELS_DIR, exist_ok=True)
-        model_path = os.path.join(MODELS_DIR, f"prophet_model_{model_key.replace(' ', '_').replace('/', '_')}.pkl")
         
-        if os.path.exists(model_path):
-            logger.info(f"기존 모델 로드: {model_path}")
-            try:
-                model = load_model(model_path)
-            except Exception as e:
-                logger.error(f"모델 로드 실패: {str(e)}", exc_info=True)
-                raise ModelTrainingError(f"모델 로드 중 오류가 발생했습니다: {str(e)}")
+        # 서초구 배포 버전: 지정된 아파트만 모델 로드
+        if apt_name and apt_name in MODEL_FILE_MAPPING:
+            model_filename = MODEL_FILE_MAPPING[apt_name]
+            model_path = os.path.join(MODELS_DIR, model_filename)
+            
+            if os.path.exists(model_path):
+                logger.info(f"기존 모델 로드: {model_path}")
+                try:
+                    model = load_model(model_path)
+                except Exception as e:
+                    logger.error(f"모델 로드 실패: {str(e)}", exc_info=True)
+                    raise ModelTrainingError(f"모델 로드 중 오류가 발생했습니다: {str(e)}")
+            else:
+                logger.error(f"모델 파일을 찾을 수 없습니다: {model_path}")
+                raise ModelTrainingError(f"모델 파일을 찾을 수 없습니다: {model_filename}")
         else:
-            logger.info("새 모델 학습 중...")
-            try:
-                df_prophet = prepare_prophet_data(df_monthly)
-                model = train_prophet_model(df_prophet)
-                save_model(model, model_path)
-                logger.info(f"모델 학습 완료 및 저장: {model_path}")
-            except Exception as e:
-                logger.error(f"모델 학습 실패: {str(e)}", exc_info=True)
-                raise ModelTrainingError(f"모델 학습 중 오류가 발생했습니다: {str(e)}")
+            # 아파트명이 없거나 매핑에 없는 경우 에러
+            raise ValidationError("지정된 아파트를 선택해주세요.")
         
         # 4. 예측 수행
         try:
@@ -332,10 +351,11 @@ async def predict(
 
 @app.get("/api/cities")
 async def get_cities():
-    """시/도 목록 조회 API"""
+    """시/도 목록 조회 API (서초구 배포 버전: 서울특별시만)"""
     try:
-        cities = get_city_list()
-        logger.info(f"시/도 목록 조회 성공: {len(cities)}개")
+        # 서초구 배포 버전: 서울특별시만 반환
+        cities = [{"code": "11", "name": "서울특별시"}]
+        logger.info(f"시/도 목록 조회 성공: {len(cities)}개 (제한된 버전)")
         return {
             "success": True,
             "cities": cities
@@ -352,14 +372,15 @@ async def get_cities():
 @app.get("/api/districts")
 async def get_districts(city_code: str):
     """
-    시/도 코드에 해당하는 구/군 목록 조회 API
+    구/군 목록 조회 API (서초구 배포 버전: 서초구만)
     
     Args:
         city_code: 시/도 코드 (2자리)
     """
     try:
-        districts = get_district_list(city_code)
-        logger.info(f"구/군 목록 조회 성공 - 시/도 코드: {city_code}, {len(districts)}개")
+        # 서초구 배포 버전: 서초구만 반환
+        districts = [{"code": "11650", "name": "서초구"}]
+        logger.info(f"구/군 목록 조회 성공 - 시/도 코드: {city_code}, {len(districts)}개 (제한된 버전)")
         return {
             "success": True,
             "city_code": city_code,
@@ -377,7 +398,7 @@ async def get_districts(city_code: str):
 @app.get("/api/apartments")
 async def get_apartments(address: str):
     """
-    주소에 해당하는 아파트 목록 조회 API
+    아파트 목록 조회 API (서초구 배포 버전: 지정된 5개만)
     
     Args:
         address: 주소 문자열
@@ -386,13 +407,21 @@ async def get_apartments(address: str):
         아파트명 리스트
     """
     try:
-        apartment_list = get_apartment_list(address, months=3)
-        logger.info(f"아파트 목록 조회 성공 - 주소: {address}, {len(apartment_list)}개")
+        # 서초구 배포 버전: 지정된 5개 아파트만 반환
+        allowed_apartments = [
+            {"name": "대림서초시리온", "value": "대림서초리시온"},
+            {"name": "디에이치반포클라스", "value": "디에이치반포라클라스"},
+            {"name": "래미안 리더스원", "value": "래미안_리더스원"},
+            {"name": "롯데캐슬갤럭시", "value": "롯데캐슬갤럭시"},
+            {"name": "대우아이빌", "value": "대우아이빌"}
+        ]
+        
+        logger.info(f"아파트 목록 조회 성공 - 주소: {address}, {len(allowed_apartments)}개 (제한된 버전)")
         return {
             "success": True,
             "address": address,
-            "apartments": apartment_list,
-            "count": len(apartment_list)
+            "apartments": [apt["value"] for apt in allowed_apartments],
+            "count": len(allowed_apartments)
         }
     except Exception as e:
         logger.error(f"아파트 목록 조회 실패 - 주소: {address}, 오류: {str(e)}", exc_info=True)

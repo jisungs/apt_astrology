@@ -90,57 +90,42 @@ async function setupAddressDropdowns() {
 async function loadCityList() {
     const citySelect = document.getElementById('city');
     
-    try {
-        const response = await fetch('/api/cities');
-        const data = await response.json();
-        
-        if (data.success && data.cities.length > 0) {
-            citySelect.innerHTML = '<option value="">시/도 선택</option>';
-            data.cities.forEach(city => {
-                const option = document.createElement('option');
-                option.value = city.code;
-                option.textContent = city.name;
-                citySelect.appendChild(option);
-            });
-        }
-    } catch (error) {
-        console.error('시/도 목록 로드 오류:', error);
-    }
+    // 서초구 배포 버전: 서울특별시만 표시
+    citySelect.innerHTML = '<option value="">시/도 선택</option>';
+    const option = document.createElement('option');
+    option.value = '11'; // 서울특별시 코드
+    option.textContent = '서울특별시';
+    citySelect.appendChild(option);
+    
+    // 서울특별시 자동 선택
+    citySelect.value = '11';
+    await loadDistrictList('11');
 }
 
 async function loadDistrictList(cityCode) {
     const districtSelect = document.getElementById('district');
     const loadingIndicator = document.getElementById('loading_district');
+    const addressInput = document.getElementById('address');
     
-    districtSelect.disabled = true;
-    districtSelect.innerHTML = '<option value="">로딩 중...</option>';
-    loadingIndicator.style.display = 'block';
+    // 서초구 배포 버전: 서초구만 표시
+    loadingIndicator.style.display = 'none';
+    districtSelect.innerHTML = '<option value="">구/군 선택</option>';
+    const option = document.createElement('option');
+    option.value = '11650'; // 서초구 코드
+    option.textContent = '서초구';
+    districtSelect.appendChild(option);
     
-    try {
-        const response = await fetch(`/api/districts?city_code=${cityCode}`);
-        const data = await response.json();
-        
-        loadingIndicator.style.display = 'none';
-        
-        if (data.success && data.districts.length > 0) {
-            districtSelect.innerHTML = '<option value="">구/군 선택</option>';
-            data.districts.forEach(district => {
-                const option = document.createElement('option');
-                option.value = district.code;
-                option.textContent = district.name;
-                districtSelect.appendChild(option);
-            });
-            districtSelect.disabled = false;
-        } else {
-            districtSelect.innerHTML = '<option value="">구/군을 찾을 수 없습니다</option>';
-            districtSelect.disabled = true;
-        }
-    } catch (error) {
-        loadingIndicator.style.display = 'none';
-        districtSelect.innerHTML = '<option value="">오류 발생</option>';
-        districtSelect.disabled = true;
-        console.error('구/군 목록 로드 오류:', error);
+    // 서초구 자동 선택
+    districtSelect.value = '11650';
+    districtSelect.disabled = false;
+    
+    // 주소 설정
+    if (addressInput) {
+        addressInput.value = '서울특별시 서초구';
     }
+    
+    // 아파트 목록 로드
+    await loadApartmentList('서울특별시 서초구');
 }
 
 function resetDistrictDropdown() {
@@ -165,51 +150,30 @@ async function loadApartmentList(address) {
         return;
     }
     
-    // 로딩 상태 표시
-    aptSelect.disabled = true;
-    aptSelect.innerHTML = '<option value="">로딩 중...</option>';
-    if (loadingIndicator) loadingIndicator.style.display = 'block';
-    if (aptHint) aptHint.textContent = '아파트 목록을 불러오는 중...';
+    // 서초구 배포 버전: 지정된 5개 아파트만 표시
+    if (loadingIndicator) loadingIndicator.style.display = 'none';
     
-    try {
-        const response = await fetch(`/api/apartments?address=${encodeURIComponent(address)}`);
-        const data = await response.json();
-        
-        if (loadingIndicator) loadingIndicator.style.display = 'none';
-        
-        if (data.success && data.apartments.length > 0) {
-            // 아파트 목록으로 드롭다운 채우기
-            aptSelect.innerHTML = '<option value="">전체 아파트 (선택 안 함)</option>';
-            
-            data.apartments.forEach(aptName => {
-                const option = document.createElement('option');
-                option.value = aptName;
-                option.textContent = aptName;
-                aptSelect.appendChild(option);
-            });
-            
-            aptSelect.disabled = false;
-            if (aptHint) {
-                aptHint.textContent = `${data.count}개의 아파트를 찾았습니다. 선택하거나 전체로 예측할 수 있습니다.`;
-                aptHint.style.color = '#9370DB';
-            }
-        } else {
-            aptSelect.innerHTML = '<option value="">아파트를 찾을 수 없습니다</option>';
-            aptSelect.disabled = true;
-            if (aptHint) {
-                aptHint.textContent = data.error || '해당 주소에서 아파트를 찾을 수 없습니다.';
-                aptHint.style.color = '#FF6B6B';
-            }
-        }
-    } catch (error) {
-        if (loadingIndicator) loadingIndicator.style.display = 'none';
-        aptSelect.innerHTML = '<option value="">오류 발생</option>';
-        aptSelect.disabled = true;
-        if (aptHint) {
-            aptHint.textContent = '아파트 목록을 불러오는 중 오류가 발생했습니다.';
-            aptHint.style.color = '#FF6B6B';
-        }
-        console.error('아파트 목록 로드 오류:', error);
+    const allowedApartments = [
+        { name: '대림서초시리온', value: '대림서초리시온' },
+        { name: '디에이치반포클라스', value: '디에이치반포라클라스' },
+        { name: '래미안 리더스원', value: '래미안_리더스원' },
+        { name: '롯데캐슬갤럭시', value: '롯데캐슬갤럭시' },
+        { name: '대우아이빌', value: '대우아이빌' }
+    ];
+    
+    aptSelect.innerHTML = '<option value="">아파트 선택</option>';
+    
+    allowedApartments.forEach(apt => {
+        const option = document.createElement('option');
+        option.value = apt.value; // 모델 파일명과 일치하는 값
+        option.textContent = apt.name; // 사용자에게 보여줄 이름
+        aptSelect.appendChild(option);
+    });
+    
+    aptSelect.disabled = false;
+    if (aptHint) {
+        aptHint.textContent = `${allowedApartments.length}개의 아파트를 선택할 수 있습니다.`;
+        aptHint.style.color = '#9370DB';
     }
 }
 
