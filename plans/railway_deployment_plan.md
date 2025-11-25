@@ -9,22 +9,43 @@
 
 ## 🌿 Git 브랜치 관리
 
+### 원격 저장소 정보
+- **원격 저장소**: `origin` → `https://github.com/jisungs/apt_astrology.git`
+- **기본 브랜치**: `main` (원격: `origin/main`)
+- **개발 브랜치**: `master` (로컬)
+- **배포 브랜치**: `railway-deployment` (로컬, 원격 푸시 필요)
+
 ### 브랜치 전략
-- **master**: 개발 버전 (전체 기능 포함)
-- **railway-deployment**: 배포 버전 (서초구 제한 버전)
+- **main**: 메인 브랜치 (원격 저장소 기본 브랜치)
+- **master**: 개발 버전 (전체 기능 포함, 로컬)
+- **railway-deployment**: 배포 버전 (서초구 제한 버전, 원격 푸시 필요)
 
 ### 브랜치 작업 흐름
 ```bash
-# 배포 브랜치 생성 및 전환
+# 1. 배포 브랜치 생성 및 전환
 git checkout -b railway-deployment
 
-# 배포 관련 변경사항 커밋
+# 2. 배포 관련 변경사항 커밋
 git add .
 git commit -m "feat: Railway 배포용 서초구 제한 버전 구현"
 
-# 배포 후 master 브랜치로 병합 (선택사항)
-git checkout master
-git merge railway-deployment
+# 3. 원격 저장소에 배포 브랜치 푸시
+git push origin railway-deployment
+
+# 4. Railway에서 railway-deployment 브랜치 연결
+# Railway 대시보드 → Settings → Source → Branch: railway-deployment 선택
+```
+
+### 원격 저장소 연결 확인
+```bash
+# 원격 저장소 확인
+git remote -v
+
+# 원격 브랜치 확인
+git branch -r
+
+# 로컬 브랜치 확인
+git branch
 ```
 
 ### 배포 브랜치에서만 적용되는 변경사항
@@ -478,13 +499,25 @@ def extract_apt_name_from_model_filename(filename: str) -> str:
 3. UI 제한 확인
 4. 각 아파트 예측 테스트
 
-### Step 4: Railway 배포
+### Step 4: 원격 저장소에 푸시
+1. 배포 브랜치를 원격 저장소에 푸시:
+   ```bash
+   git checkout railway-deployment
+   git push origin railway-deployment
+   ```
+2. GitHub에서 브랜치 확인:
+   - https://github.com/jisungs/apt_astrology
+   - 브랜치 목록에서 `railway-deployment` 확인
+
+### Step 5: Railway 배포
 1. Railway 계정 생성: https://railway.app
 2. 새 프로젝트 생성
-3. GitHub 저장소 연결
+3. GitHub 저장소 연결:
+   - 저장소: `jisungs/apt_astrology`
+   - 브랜치: `railway-deployment` 선택
 4. 환경 변수 설정:
    - `PUBLIC_API_KEY`: 공공데이터 포털 API 키
-5. 배포 실행
+5. 배포 실행 (자동 또는 수동)
 6. 배포 URL 확인 및 테스트
 
 ---
