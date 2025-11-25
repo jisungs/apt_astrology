@@ -354,13 +354,18 @@ else:
 web: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
-#### 4.2 runtime.txt 생성 (선택사항)
-**파일**: `runtime.txt` (프로젝트 루트)
+#### 4.2 runtime.txt 생성 (제거됨)
+**⚠️ 중요**: `runtime.txt` 파일은 Railway 배포 시 오류를 발생시킵니다.
 
-**내용**:
-```
-python-3.11.0
-```
+**문제점**:
+- Railway가 `runtime.txt`를 발견하면 `mise`를 사용하여 Python을 설치하려고 시도
+- `mise`가 Python 3.11.0의 precompiled 버전을 찾지 못해 빌드 실패
+- 에러: `mise ERROR no precompiled python found for core:python@3.11.0`
+
+**해결 방법**:
+- `runtime.txt` 파일을 **제거**해야 합니다
+- Railway는 `requirements.txt`를 분석하여 Python 버전을 자동으로 감지합니다
+- Python 버전을 명시적으로 지정하려면 `nixpacks.toml` 파일을 사용하세요
 
 #### 4.3 railway.json 생성 (선택사항)
 **파일**: `railway.json` (프로젝트 루트)
@@ -433,9 +438,9 @@ git push origin railway-deployment
 - [ ] 모델 파일명과 아파트명 매핑 확인
 
 #### 5.2 배포 파일 생성
-- [ ] `Procfile` 생성
-- [ ] `runtime.txt` 생성 (선택사항)
-- [ ] `railway.json` 생성 (선택사항)
+- [x] `Procfile` 생성 완료
+- [x] `runtime.txt` 제거 완료 (Railway 오류 방지)
+- [ ] `nixpacks.toml` 생성 (선택사항, Python 버전 명시적 지정 시)
 
 #### 5.3 모델 파일 확인
 - [ ] `models/` 폴더에 5개 모델 파일 존재 확인
