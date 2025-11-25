@@ -9,12 +9,22 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
+import logging
+
 from utils import address_to_dong_code, generate_year_month_list, parse_year_month
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 PUBLIC_API_KEY = os.getenv("PUBLIC_API_KEY")
 API_URL = "http://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
+
+# API 키 검증
+if not PUBLIC_API_KEY or PUBLIC_API_KEY.strip() == "":
+    logger.warning("PUBLIC_API_KEY가 설정되지 않았습니다. 환경 변수를 확인하세요.")
+else:
+    logger.info("API 키가 설정되었습니다.")
 
 
 def parse_xml_response(xml_text: str) -> List[Dict]:
@@ -39,7 +49,7 @@ def parse_xml_response(xml_text: str) -> List[Dict]:
         
         return items
     except ET.ParseError as e:
-        print(f"XML 파싱 오류: {e}")
+        logger.error(f"XML 파싱 오류: {e}")
         return []
 
 
@@ -68,17 +78,23 @@ def fetch_apt_trade_data(lawd_cd: str, deal_ymd: str) -> List[Dict]:
     }
     
     try:
+        # API 키 검증
+        if not PUBLIC_API_KEY or PUBLIC_API_KEY.strip() == "":
+            logger.error("API 키가 설정되지 않았습니다")
+            return []
+        
         response = requests.get(API_URL, params=params, timeout=10)
         response.raise_for_status()
         
         # XML 파싱
         data = parse_xml_response(response.text)
+        logger.debug(f"API 데이터 수집 성공 - 법정동코드: {lawd_cd}, 거래월: {deal_ymd}, 건수: {len(data)}")
         return data
     except requests.exceptions.RequestException as e:
-        print(f"API 요청 오류 ({deal_ymd}): {e}")
+        logger.warning(f"API 요청 오류 ({deal_ymd}): {e}")
         return []
     except Exception as e:
-        print(f"데이터 수집 오류 ({deal_ymd}): {e}")
+        logger.error(f"데이터 수집 오류 ({deal_ymd}): {e}", exc_info=True)
         return []
 
 
@@ -112,13 +128,13 @@ def get_apartment_list(address: str, months: int = 3, use_cache: bool = True) ->
             if 'apartment_name' in df_cache.columns:
                 apartment_list = df_cache['apartment_name'].dropna().unique().tolist()
                 apartment_list = sorted([apt for apt in apartment_list if apt and apt.strip()])
-                print(f"캐시에서 아파트 목록 로드: {len(apartment_list)}개 (주소: {address})")
+                logger.info(f"캐시에서 아파트 목록 로드: {len(apartment_list)}개 (주소: {address})")
                 return apartment_list
         except Exception as e:
-            print(f"캐시 파일 읽기 오류: {e}, API에서 새로 수집합니다.")
+            logger.warning(f"캐시 파일 읽기 오류: {e}, API에서 새로 수집합니다.")
     
     # 캐시가 없거나 읽기 실패 시 API에서 수집
-    print(f"API에서 아파트 목록 수집 중... (주소: {address})")
+    logger.info(f"API에서 아파트 목록 수집 중... (주소: {address})")
     
     # 주소 → 법정동 코드 변환
     lawd_cd = address_to_dong_code(address)
@@ -133,9 +149,9 @@ def get_apartment_list(address: str, months: int = 3, use_cache: bool = True) ->
     
     apartment_set = set()
     
-    print(f"아파트 목록 수집 중... (최근 {months}개월)")
+    logger.info(f"아파트 목록 수집 중... (최근 {months}개월)")
     for i, deal_ymd in enumerate(year_month_list[:months], 1):
-        print(f"[{i}/{min(months, len(year_month_list))}] {deal_ymd} 데이터 조회 중...")
+        logger.debug(f"[{i}/{min(months, len(year_month_list))}] {deal_ymd} 데이터 조회 중...")
         data = fetch_apt_trade_data(lawd_cd, deal_ymd)
         
         for item in data:
@@ -148,16 +164,16 @@ def get_apartment_list(address: str, months: int = 3, use_cache: bool = True) ->
         time.sleep(0.1)  # API 호출 제한 고려
     
     apartment_list = sorted(list(apartment_set))
-    print(f"총 {len(apartment_list)}개의 아파트를 찾았습니다.")
+    logger.info(f"총 {len(apartment_list)}개의 아파트를 찾았습니다.")
     
     # CSV 캐시에 저장
     if apartment_list:
         try:
             df_cache = pd.DataFrame({'apartment_name': apartment_list})
             df_cache.to_csv(cache_file, index=False, encoding='utf-8')
-            print(f"아파트 목록 캐시 저장 완료: {cache_file}")
+            logger.info(f"아파트 목록 캐시 저장 완료: {cache_file}")
         except Exception as e:
-            print(f"캐시 파일 저장 오류: {e}")
+            logger.warning(f"캐시 파일 저장 오류: {e}")
     
     return apartment_list
 
@@ -178,7 +194,7 @@ def collect_24months_data(address: str, apt_name: Optional[str] = None) -> pd.Da
     if not lawd_cd:
         raise ValueError(f"주소를 법정동 코드로 변환할 수 없습니다: {address}")
     
-    print(f"법정동 코드: {lawd_cd}")
+    logger.info(f"법정동 코드: {lawd_cd}")
     
     # 최근 24개월 년월 리스트 생성
     from datetime import datetime
@@ -192,16 +208,16 @@ def collect_24months_data(address: str, apt_name: Optional[str] = None) -> pd.Da
     
     all_data = []
     
-    print(f"총 {len(year_month_list)}개월 데이터 수집 시작...")
+    logger.info(f"총 {len(year_month_list)}개월 데이터 수집 시작...")
     for i, deal_ymd in enumerate(year_month_list, 1):
-        print(f"[{i}/{len(year_month_list)}] {deal_ymd} 데이터 수집 중...")
+        logger.debug(f"[{i}/{len(year_month_list)}] {deal_ymd} 데이터 수집 중...")
         data = fetch_apt_trade_data(lawd_cd, deal_ymd)
         
         if data:
             all_data.extend(data)
-            print(f"  → {len(data)}건 수집 완료")
+            logger.debug(f"  → {len(data)}건 수집 완료")
         else:
-            print(f"  → 데이터 없음")
+            logger.debug(f"  → 데이터 없음")
         
         # API 호출 제한을 고려한 딜레이 (필요시)
         import time
@@ -219,15 +235,14 @@ def collect_24months_data(address: str, apt_name: Optional[str] = None) -> pd.Da
             # 부분 일치 검색 (대소문자 구분 없음)
             df_filtered = df[df['aptNm'].str.contains(apt_name, case=False, na=False)]
             if len(df_filtered) == 0:
-                print(f"\n⚠️  경고: '{apt_name}'와 일치하는 아파트를 찾을 수 없습니다.")
-                print(f"   사용 가능한 아파트명 샘플: {df['aptNm'].unique()[:5].tolist()}")
+                logger.warning(f"'{apt_name}'와 일치하는 아파트를 찾을 수 없습니다. 사용 가능한 아파트명 샘플: {df['aptNm'].unique()[:5].tolist()}")
             else:
                 df = df_filtered
-                print(f"\n✓ '{apt_name}' 아파트 필터링 완료: {len(df)}건")
+                logger.info(f"'{apt_name}' 아파트 필터링 완료: {len(df)}건")
         else:
-            print(f"\n⚠️  경고: 아파트명 컬럼을 찾을 수 없습니다.")
+            logger.warning("아파트명 컬럼을 찾을 수 없습니다.")
     
-    print(f"\n총 {len(df)}건의 거래 데이터 수집 완료")
+    logger.info(f"총 {len(df)}건의 거래 데이터 수집 완료")
     return df
 
 

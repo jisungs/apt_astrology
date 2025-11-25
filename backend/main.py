@@ -6,10 +6,21 @@ from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import pandas as pd
 from typing import Optional
+import logging
 
+# 로깅 설정
+import logging_config
+logger = logging.getLogger(__name__)
+
+# 커스텀 예외 및 스키마
+from exceptions import PredictionError, DataCollectionError, ModelTrainingError, ValidationError
+from schemas import PredictionRequest
+
+# 데이터 수집 및 모델
 from data_collector import collect_24months_data, preprocess_trade_data, calculate_monthly_avg_price, get_apartment_list
 from model import (
     prepare_prophet_data,
@@ -24,6 +35,34 @@ from visualization import create_price_prediction_chart, create_volume_chart
 from utils import format_price, get_city_list, get_district_list
 
 app = FastAPI(title="🔮 아파트 가격 예측", description="점성술사 느낌의 아파트 가격 예측 서비스")
+
+# CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:8000",
+        # 배포 시 실제 도메인 추가 필요
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+# Rate Limiting 설정
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    logger.info("Rate Limiting 활성화됨")
+except ImportError:
+    logger.warning("slowapi가 설치되지 않아 Rate Limiting이 비활성화됩니다. pip install slowapi로 설치하세요.")
+    limiter = None
 
 # 정적 파일 및 템플릿 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -53,16 +92,28 @@ async def predict(
         address: 주소 (예: "서울특별시 종로구")
         apt_name: 아파트명 (선택사항)
     """
+    
     try:
+        # 입력 검증
+        try:
+            validated_request = PredictionRequest(address=address, apt_name=apt_name)
+            address = validated_request.address
+            apt_name = validated_request.apt_name
+        except Exception as e:
+            logger.warning(f"입력 검증 실패: {str(e)}")
+            raise ValidationError(f"입력 검증 실패: {str(e)}")
+        
         # 1. 데이터 수집
-        print(f"\n[예측 요청] 주소: {address}, 아파트명: {apt_name or '전체'}")
-        df_raw = collect_24months_data(address, apt_name=apt_name)
+        logger.info(f"예측 요청 - 주소: {address}, 아파트명: {apt_name or '전체'}")
+        try:
+            df_raw = collect_24months_data(address, apt_name=apt_name)
+        except Exception as e:
+            logger.error(f"데이터 수집 실패: {str(e)}", exc_info=True)
+            raise DataCollectionError(f"데이터 수집 중 오류가 발생했습니다: {str(e)}")
         
         if len(df_raw) == 0:
-            raise HTTPException(
-                status_code=404,
-                detail=f"'{address}' 지역의 거래 데이터를 찾을 수 없습니다."
-            )
+            logger.warning(f"데이터 없음 - 주소: {address}")
+            raise DataCollectionError(f"'{address}' 지역의 거래 데이터를 찾을 수 없습니다.")
         
         # 2. 데이터 전처리
         df_processed = preprocess_trade_data(df_raw)
@@ -126,7 +177,7 @@ async def predict(
             )
         elif len(df_monthly) < 12:
             data_warning = f"⚠️ 데이터가 {len(df_monthly)}개월로 부족합니다. 예측 정확도가 낮을 수 있습니다. (권장: 12개월 이상)"
-            print(f"[경고] {data_warning}")
+            logger.warning(data_warning)
         
         # 3. 모델 학습 또는 로드
         model_key = f"{address}_{apt_name or '전체'}"
@@ -135,18 +186,31 @@ async def predict(
         model_path = os.path.join(MODELS_DIR, f"prophet_model_{model_key.replace(' ', '_').replace('/', '_')}.pkl")
         
         if os.path.exists(model_path):
-            print(f"기존 모델 로드: {model_path}")
-            model = load_model(model_path)
+            logger.info(f"기존 모델 로드: {model_path}")
+            try:
+                model = load_model(model_path)
+            except Exception as e:
+                logger.error(f"모델 로드 실패: {str(e)}", exc_info=True)
+                raise ModelTrainingError(f"모델 로드 중 오류가 발생했습니다: {str(e)}")
         else:
-            print("새 모델 학습 중...")
-            df_prophet = prepare_prophet_data(df_monthly)
-            model = train_prophet_model(df_prophet)
-            save_model(model, model_path)
+            logger.info("새 모델 학습 중...")
+            try:
+                df_prophet = prepare_prophet_data(df_monthly)
+                model = train_prophet_model(df_prophet)
+                save_model(model, model_path)
+                logger.info(f"모델 학습 완료 및 저장: {model_path}")
+            except Exception as e:
+                logger.error(f"모델 학습 실패: {str(e)}", exc_info=True)
+                raise ModelTrainingError(f"모델 학습 중 오류가 발생했습니다: {str(e)}")
         
         # 4. 예측 수행
-        df_prophet = prepare_prophet_data(df_monthly)
-        last_date = df_prophet['ds'].max()
-        predictions = predict_current_and_next_month(model, last_date)
+        try:
+            df_prophet = prepare_prophet_data(df_monthly)
+            last_date = df_prophet['ds'].max()
+            predictions = predict_current_and_next_month(model, last_date)
+        except Exception as e:
+            logger.error(f"예측 수행 실패: {str(e)}", exc_info=True)
+            raise PredictionError(f"예측 수행 중 오류가 발생했습니다: {str(e)}")
         
         current_forecast = predictions['current_month']
         next_forecast = predictions['next_month']
@@ -185,7 +249,7 @@ async def predict(
                 current_forecast['upper_bound'] = current_forecast['upper_bound'] * (1 + diff_ratio)
                 
                 adjustment_percent = random_adjustment * 100
-                print(f"[가격 조정] 현재달 예측: {predicted_current:,.0f}원 → {adjusted_current:,.0f}원 (차이: {price_diff_ratio*100:.1f}%, 마지막 거래가: {last_price:,.0f}원 기준 ±{adjustment_percent:.1f}% 랜덤 조정)")
+                logger.info(f"가격 조정 - 현재달 예측: {predicted_current:,.0f}원 → {adjusted_current:,.0f}원 (차이: {price_diff_ratio*100:.1f}%, 마지막 거래가: {last_price:,.0f}원 기준 ±{adjustment_percent:.1f}% 랜덤 조정)")
             
             # 다음달 예측 가격 조정
             predicted_next = next_forecast['predicted_price']
@@ -210,7 +274,7 @@ async def predict(
                 next_forecast['upper_bound'] = next_forecast['upper_bound'] * (1 + diff_ratio)
                 
                 adjustment_percent_next = random_adjustment_next * 100
-                print(f"[가격 조정] 다음달 예측: {predicted_next:,.0f}원 → {adjusted_next:,.0f}원 (차이: {price_diff_ratio_next*100:.1f}%, 마지막 거래가: {last_price:,.0f}원 기준 ±{adjustment_percent_next:.1f}% 랜덤 조정)")
+                logger.info(f"가격 조정 - 다음달 예측: {predicted_next:,.0f}원 → {adjusted_next:,.0f}원 (차이: {price_diff_ratio_next*100:.1f}%, 마지막 거래가: {last_price:,.0f}원 기준 ±{adjustment_percent_next:.1f}% 랜덤 조정)")
         
         # 5. 예측 근거 분석
         last_price_for_analysis = last_trade['price'] if last_trade and 'price' in last_trade else None
@@ -259,13 +323,11 @@ async def predict(
             }
         )
         
-    except HTTPException:
+    except (HTTPException, PredictionError, DataCollectionError, ModelTrainingError, ValidationError):
         raise
     except Exception as e:
-        print(f"오류 발생: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"예측 중 오류가 발생했습니다: {str(e)}")
+        logger.error(f"예측 중 예상치 못한 오류 발생: {str(e)}", exc_info=True)
+        raise PredictionError(f"예측 중 오류가 발생했습니다: {str(e)}")
 
 
 @app.get("/api/cities")
@@ -273,11 +335,13 @@ async def get_cities():
     """시/도 목록 조회 API"""
     try:
         cities = get_city_list()
+        logger.info(f"시/도 목록 조회 성공: {len(cities)}개")
         return {
             "success": True,
             "cities": cities
         }
     except Exception as e:
+        logger.error(f"시/도 목록 조회 실패: {str(e)}", exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -295,12 +359,14 @@ async def get_districts(city_code: str):
     """
     try:
         districts = get_district_list(city_code)
+        logger.info(f"구/군 목록 조회 성공 - 시/도 코드: {city_code}, {len(districts)}개")
         return {
             "success": True,
             "city_code": city_code,
             "districts": districts
         }
     except Exception as e:
+        logger.error(f"구/군 목록 조회 실패 - 시/도 코드: {city_code}, 오류: {str(e)}", exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -321,6 +387,7 @@ async def get_apartments(address: str):
     """
     try:
         apartment_list = get_apartment_list(address, months=3)
+        logger.info(f"아파트 목록 조회 성공 - 주소: {address}, {len(apartment_list)}개")
         return {
             "success": True,
             "address": address,
@@ -328,6 +395,7 @@ async def get_apartments(address: str):
             "count": len(apartment_list)
         }
     except Exception as e:
+        logger.error(f"아파트 목록 조회 실패 - 주소: {address}, 오류: {str(e)}", exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -349,11 +417,11 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    print("\n" + "=" * 60)
-    print("🔮 점성술사의 아파트 가격 예측 서비스 시작")
-    print("=" * 60)
-    print("서버 주소: http://localhost:8000")
-    print("API 문서: http://localhost:8000/docs")
-    print("=" * 60 + "\n")
+    logger.info("=" * 60)
+    logger.info("🔮 점성술사의 아파트 가격 예측 서비스 시작")
+    logger.info("=" * 60)
+    logger.info("서버 주소: http://localhost:8000")
+    logger.info("API 문서: http://localhost:8000/docs")
+    logger.info("=" * 60)
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 

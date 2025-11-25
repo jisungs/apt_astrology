@@ -354,3 +354,7 @@ pyrightconfig.json
 #local project files
 .env
 /plans
+
+# Logs directory
+logs/
+*.log

@@ -10,6 +10,9 @@ from typing import Dict, Tuple, Optional
 import pickle
 import os
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def prepare_prophet_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -45,22 +48,35 @@ def train_prophet_model(df: pd.DataFrame, **prophet_params) -> Prophet:
     Returns:
         학습된 Prophet 모델
     """
-    # 기본 파라미터 설정
-    default_params = {
-        'yearly_seasonality': True,
-        'weekly_seasonality': False,  # 월 단위 데이터이므로 주간 계절성 불필요
-        'daily_seasonality': False,
-        'seasonality_mode': 'multiplicative',  # 곱셈 계절성 (가격 변동에 적합)
-        'changepoint_prior_scale': 0.05,  # 변화점 감지 민감도
-    }
-    
-    # 사용자 파라미터로 덮어쓰기
-    default_params.update(prophet_params)
-    
-    model = Prophet(**default_params)
-    model.fit(df)
-    
-    return model
+    try:
+        # 데이터 검증
+        if df is None or len(df) == 0:
+            raise ValueError("학습 데이터가 비어있습니다")
+        
+        if 'ds' not in df.columns or 'y' not in df.columns:
+            raise ValueError("필수 컬럼(ds, y)이 없습니다")
+        
+        # 기본 파라미터 설정
+        default_params = {
+            'yearly_seasonality': True,
+            'weekly_seasonality': False,  # 월 단위 데이터이므로 주간 계절성 불필요
+            'daily_seasonality': False,
+            'seasonality_mode': 'multiplicative',  # 곱셈 계절성 (가격 변동에 적합)
+            'changepoint_prior_scale': 0.05,  # 변화점 감지 민감도
+        }
+        
+        # 사용자 파라미터로 덮어쓰기
+        default_params.update(prophet_params)
+        
+        logger.info(f"Prophet 모델 학습 시작 - 데이터 수: {len(df)}개")
+        model = Prophet(**default_params)
+        model.fit(df)
+        logger.info("Prophet 모델 학습 완료")
+        
+        return model
+    except Exception as e:
+        logger.error(f"Prophet 모델 학습 실패: {str(e)}", exc_info=True)
+        raise
 
 
 def predict_current_and_next_month(model: Prophet, last_date: datetime) -> Dict:
@@ -78,40 +94,50 @@ def predict_current_and_next_month(model: Prophet, last_date: datetime) -> Dict:
             'next_month': {날짜, 예측값, 하한, 상한}
         }
     """
-    from datetime import datetime
-    
-    # 현재 날짜 기준으로 이번달과 다음달 계산
-    now = datetime.now()
-    current_month = datetime(now.year, now.month, 1)
-    
-    # 다음달 날짜 계산
-    if now.month == 12:
-        next_month = datetime(now.year + 1, 1, 1)
-    else:
-        next_month = datetime(now.year, now.month + 1, 1)
-    
-    # 예측 기간 생성 (이번달과 다음달)
-    future = pd.DataFrame({'ds': [current_month, next_month]})
-    
-    # 예측 수행
-    forecast = model.predict(future)
-    
-    result = {
-        'current_month': {
-            'date': current_month,
-            'predicted_price': forecast['yhat'].iloc[0],
-            'lower_bound': forecast['yhat_lower'].iloc[0],
-            'upper_bound': forecast['yhat_upper'].iloc[0],
-        },
-        'next_month': {
-            'date': next_month,
-            'predicted_price': forecast['yhat'].iloc[1],
-            'lower_bound': forecast['yhat_lower'].iloc[1],
-            'upper_bound': forecast['yhat_upper'].iloc[1],
+    try:
+        from datetime import datetime
+        
+        # 모델 검증
+        if model is None:
+            raise ValueError("모델이 None입니다")
+        
+        # 현재 날짜 기준으로 이번달과 다음달 계산
+        now = datetime.now()
+        current_month = datetime(now.year, now.month, 1)
+        
+        # 다음달 날짜 계산
+        if now.month == 12:
+            next_month = datetime(now.year + 1, 1, 1)
+        else:
+            next_month = datetime(now.year, now.month + 1, 1)
+        
+        # 예측 기간 생성 (이번달과 다음달)
+        future = pd.DataFrame({'ds': [current_month, next_month]})
+        
+        # 예측 수행
+        logger.debug(f"예측 수행 - 현재달: {current_month}, 다음달: {next_month}")
+        forecast = model.predict(future)
+        
+        result = {
+            'current_month': {
+                'date': current_month,
+                'predicted_price': forecast['yhat'].iloc[0],
+                'lower_bound': forecast['yhat_lower'].iloc[0],
+                'upper_bound': forecast['yhat_upper'].iloc[0],
+            },
+            'next_month': {
+                'date': next_month,
+                'predicted_price': forecast['yhat'].iloc[1],
+                'lower_bound': forecast['yhat_lower'].iloc[1],
+                'upper_bound': forecast['yhat_upper'].iloc[1],
+            }
         }
-    }
-    
-    return result
+        
+        logger.info(f"예측 완료 - 현재달: {result['current_month']['predicted_price']:,.0f}원, 다음달: {result['next_month']['predicted_price']:,.0f}원")
+        return result
+    except Exception as e:
+        logger.error(f"예측 수행 실패: {str(e)}", exc_info=True)
+        raise
 
 
 def predict_next_month(model: Prophet, last_date: datetime) -> Dict:
